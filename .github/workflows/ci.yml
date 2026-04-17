@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chapter:
+          - ch01-gin-intro
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: ${{ matrix.chapter }}/go.sum
+
+      - name: go build
+        working-directory: ${{ matrix.chapter }}
+        run: go build ./...
+
+      - name: go vet
+        working-directory: ${{ matrix.chapter }}
+        run: go vet ./...
+
+      - name: go test
+        working-directory: ${{ matrix.chapter }}
+        run: go test ./...
