@@ -14,6 +14,7 @@ jobs:
         chapter:
           - ch01-gin-intro
           - ch02-routing
+          - ch03-middleware
     steps:
       - uses: actions/checkout@v4
 
