@@ -13,6 +13,7 @@ jobs:
       matrix:
         chapter:
           - ch01-gin-intro
+          - ch02-routing
     steps:
       - uses: actions/checkout@v4
 
