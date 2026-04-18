@@ -15,6 +15,11 @@ jobs:
           - ch01-gin-intro
           - ch02-routing
           - ch03-middleware
+          - ch04-postgres-sqlc
+          - ch05-validation
+          - ch07-jwt-impl
+          - ch08-file-upload
+          - ch09-slog-otel
     steps:
       - uses: actions/checkout@v4
 
