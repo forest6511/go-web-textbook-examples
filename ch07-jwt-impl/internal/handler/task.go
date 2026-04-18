@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/forest6511/go-web-textbook-examples/ch07-jwt-impl/internal/apperror"
+	"github.com/forest6511/go-web-textbook-examples/ch07-jwt-impl/internal/auth"
 	"github.com/forest6511/go-web-textbook-examples/ch07-jwt-impl/internal/domain"
 	"github.com/forest6511/go-web-textbook-examples/ch07-jwt-impl/internal/usecase"
 )
@@ -32,18 +33,16 @@ type TaskIDParam struct {
 	ID int64 `uri:"id" binding:"required,gt=0"`
 }
 
-// devUserID は Ch 07 で認証を導入するまでの開発用固定ユーザー ID
-const devUserID int64 = 1
-
 // Create は新規タスクを作成する
 func (h *TaskHandler) Create(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	var req CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	task, err := h.usecase.Create(c.Request.Context(), devUserID, req.Title)
+	task, err := h.usecase.Create(c.Request.Context(), principal.UserID, req.Title)
 	if err != nil {
 		_ = c.Error(apperror.FromDomain(err))
 		return
@@ -54,13 +53,14 @@ func (h *TaskHandler) Create(c *gin.Context) {
 
 // List はタスク一覧を返す。?limit=20&offset=0 のようなページングを受ける
 func (h *TaskHandler) List(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	limit, offset, err := parseListQuery(c)
 	if err != nil {
 		_ = c.Error(apperror.NewBadRequest(err.Error(), err))
 		return
 	}
 
-	tasks, err := h.usecase.List(c.Request.Context(), devUserID, limit, offset)
+	tasks, err := h.usecase.List(c.Request.Context(), principal.UserID, limit, offset)
 	if err != nil {
 		_ = c.Error(apperror.FromDomain(err))
 		return
@@ -82,13 +82,14 @@ func parseListQuery(c *gin.Context) (int32, int32, error) {
 
 // Get は ID で特定したタスクを返す
 func (h *TaskHandler) Get(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	var p TaskIDParam
 	if err := c.ShouldBindUri(&p); err != nil {
 		_ = c.Error(err)
 		return
 	}
 
-	task, err := h.usecase.Get(c.Request.Context(), devUserID, p.ID)
+	task, err := h.usecase.Get(c.Request.Context(), principal.UserID, p.ID)
 	if err != nil {
 		_ = c.Error(apperror.FromDomain(err))
 		return
@@ -98,6 +99,7 @@ func (h *TaskHandler) Get(c *gin.Context) {
 
 // UpdateStatus はステータスのみ更新する。本章では単一フィールド更新に限定
 func (h *TaskHandler) UpdateStatus(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	var p TaskIDParam
 	if err := c.ShouldBindUri(&p); err != nil {
 		_ = c.Error(err)
@@ -110,7 +112,7 @@ func (h *TaskHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	err := h.usecase.UpdateStatus(
-		c.Request.Context(), devUserID, p.ID, domain.Status(req.Status),
+		c.Request.Context(), principal.UserID, p.ID, domain.Status(req.Status),
 	)
 	if err != nil {
 		_ = c.Error(apperror.FromDomain(err))
@@ -121,12 +123,13 @@ func (h *TaskHandler) UpdateStatus(c *gin.Context) {
 
 // Delete は ID で特定したタスクを削除する
 func (h *TaskHandler) Delete(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	var p TaskIDParam
 	if err := c.ShouldBindUri(&p); err != nil {
 		_ = c.Error(err)
 		return
 	}
-	if err := h.usecase.Delete(c.Request.Context(), devUserID, p.ID); err != nil {
+	if err := h.usecase.Delete(c.Request.Context(), principal.UserID, p.ID); err != nil {
 		_ = c.Error(apperror.FromDomain(err))
 		return
 	}

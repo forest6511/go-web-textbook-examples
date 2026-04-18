@@ -171,13 +171,14 @@ func (h *AttachmentHandler) PresignUpload(c *gin.Context) {
 }
 
 func (h *AttachmentHandler) GetDownloadURL(c *gin.Context) {
+	principal, _ := auth.PrincipalFromContext(c.Request.Context())
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		_ = c.Error(apperror.NewBadRequest("invalid id", err))
 		return
 	}
-	att, err := h.repo.GetByID(c.Request.Context(), id)
+	att, err := h.repo.GetByID(c.Request.Context(), id, principal.UserID)
 	if err != nil {
 		_ = c.Error(apperror.FromDomain(err))
 		return

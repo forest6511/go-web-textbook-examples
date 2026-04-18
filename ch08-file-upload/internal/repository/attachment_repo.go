@@ -11,7 +11,7 @@ import (
 
 type AttachmentRepo interface {
 	Create(ctx context.Context, in NewAttachment) (domain.Attachment, error)
-	GetByID(ctx context.Context, id uuid.UUID) (domain.Attachment, error)
+	GetByID(ctx context.Context, id uuid.UUID, ownerID int64) (domain.Attachment, error)
 	DeleteByID(ctx context.Context, id uuid.UUID, ownerID int64) error
 }
 
@@ -57,14 +57,14 @@ func (r *PgAttachmentRepo) Create(
 const getAttachmentByIDSQL = `
 SELECT id, owner_id, object_key, filename, content_type, size_bytes, uploaded_at
 FROM attachments
-WHERE id = $1
+WHERE id = $1 AND owner_id = $2
 `
 
 func (r *PgAttachmentRepo) GetByID(
-	ctx context.Context, id uuid.UUID,
+	ctx context.Context, id uuid.UUID, ownerID int64,
 ) (domain.Attachment, error) {
 	var a domain.Attachment
-	err := r.pool.QueryRow(ctx, getAttachmentByIDSQL, id).
+	err := r.pool.QueryRow(ctx, getAttachmentByIDSQL, id, ownerID).
 		Scan(&a.ID, &a.OwnerID, &a.ObjectKey, &a.Filename,
 			&a.ContentType, &a.SizeBytes, &a.UploadedAt)
 	if err != nil {
