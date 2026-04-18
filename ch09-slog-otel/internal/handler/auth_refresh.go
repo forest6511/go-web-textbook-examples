@@ -49,6 +49,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	_ = h.usecase.Logout(c.Request.Context(), raw)
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", "", -1,
-		"/api/v1/auth", "", true, true)
+		"/api/v1/auth", "", h.cfg.SecureCookie, true)
 	c.Status(http.StatusNoContent)
 }

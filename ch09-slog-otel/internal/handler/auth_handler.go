@@ -82,7 +82,7 @@ func setRefreshCookie(c *gin.Context, token string, cfg *auth.Config) {
 		int(cfg.RefreshTTL.Seconds()),
 		"/api/v1/auth",
 		"",
-		true,
+		cfg.SecureCookie,
 		true,
 	)
 }

@@ -18,12 +18,13 @@ type AccessClaims struct {
 }
 
 type Config struct {
-	HMACSecret []byte
-	Issuer     string
-	Audience   string
-	AccessTTL  time.Duration
-	RefreshTTL time.Duration
-	Leeway     time.Duration
+	HMACSecret   []byte
+	Issuer       string
+	Audience     string
+	AccessTTL    time.Duration
+	RefreshTTL   time.Duration
+	Leeway       time.Duration
+	SecureCookie bool
 }
 
 var ErrMissingSecret = errors.New("JWT_SECRET is empty or too short")
@@ -34,12 +35,13 @@ func LoadConfig() (*Config, error) {
 		return nil, ErrMissingSecret
 	}
 	return &Config{
-		HMACSecret: []byte(secret),
-		Issuer:     envOr("JWT_ISSUER", "go-web-textbook"),
-		Audience:   envOr("JWT_AUDIENCE", "go-web-textbook-api"),
-		AccessTTL:  envDur("JWT_ACCESS_TTL", 15*time.Minute),
-		RefreshTTL: envDur("JWT_REFRESH_TTL", 7*24*time.Hour),
-		Leeway:     envDur("JWT_LEEWAY", 30*time.Second),
+		HMACSecret:   []byte(secret),
+		Issuer:       envOr("JWT_ISSUER", "go-web-textbook"),
+		Audience:     envOr("JWT_AUDIENCE", "go-web-textbook-api"),
+		AccessTTL:    envDur("JWT_ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:   envDur("JWT_REFRESH_TTL", 7*24*time.Hour),
+		Leeway:       envDur("JWT_LEEWAY", 30*time.Second),
+		SecureCookie: os.Getenv("ENV") == "production",
 	}, nil
 }
 
