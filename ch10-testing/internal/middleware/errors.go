@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,12 @@ func toAppError(err error) *apperror.AppError {
 			"request body did not pass validation",
 			toFieldIssues(ve), err,
 		)
+	}
+	// 空 body / 途中で切れた body は io.EOF / io.ErrUnexpectedEOF として現れる。
+	// 500 ではなく 400 Bad Request に振り分ける（Ch 05 の積み残し）。
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return apperror.NewBadRequest(
+			"request body is empty or truncated", err)
 	}
 	var syn *json.SyntaxError
 	var ute *json.UnmarshalTypeError

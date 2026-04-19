@@ -10,6 +10,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Attachment struct {
+	ID          pgtype.UUID `json:"id"`
+	OwnerID     int64       `json:"owner_id"`
+	ObjectKey   string      `json:"object_key"`
+	Filename    string      `json:"filename"`
+	ContentType string      `json:"content_type"`
+	SizeBytes   int64       `json:"size_bytes"`
+	UploadedAt  time.Time   `json:"uploaded_at"`
+}
+
 type Audit struct {
 	ID        int64     `json:"id"`
 	Action    string    `json:"action"`

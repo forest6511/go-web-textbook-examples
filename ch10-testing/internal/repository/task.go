@@ -100,10 +100,14 @@ func (r *PostgresTaskRepo) UpdateStatus(
 func (r *PostgresTaskRepo) Delete(
 	ctx context.Context, userID, id int64,
 ) error {
-	if err := r.queries.DeleteTask(ctx,
+	rows, err := r.queries.DeleteTask(ctx,
 		dbgen.DeleteTaskParams{ID: id, UserID: userID},
-	); err != nil {
+	)
+	if err != nil {
 		return mapPgError(err)
+	}
+	if rows == 0 {
+		return domain.ErrTaskNotFound
 	}
 	return nil
 }

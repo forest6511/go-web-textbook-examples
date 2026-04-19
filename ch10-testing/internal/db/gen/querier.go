@@ -11,19 +11,25 @@ import (
 )
 
 type Querier interface {
+	// used_at IS NULL の条件で原子的に used_at をセットする。
+	// 並行 /auth/refresh が 2 回叩かれた場合、1 回目だけが RETURNING で行を返し、
+	// 2 回目は pgx.ErrNoRows となる（= 再利用検知）。
+	ConsumeRefreshToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUserWithHash(ctx context.Context, arg CreateUserWithHashParams) (CreateUserWithHashRow, error)
+	DeleteAttachmentByID(ctx context.Context, arg DeleteAttachmentByIDParams) error
 	DeleteRefreshTokenByHash(ctx context.Context, tokenHash []byte) error
-	DeleteTask(ctx context.Context, arg DeleteTaskParams) error
+	DeleteTask(ctx context.Context, arg DeleteTaskParams) (int64, error)
 	FindRefreshTokenByHash(ctx context.Context, tokenHash []byte) (RefreshToken, error)
 	FindUserByEmail(ctx context.Context, email string) (FindUserByEmailRow, error)
 	FindUserByID(ctx context.Context, id int64) (FindUserByIDRow, error)
+	GetAttachmentByID(ctx context.Context, id pgtype.UUID) (Attachment, error)
 	GetTask(ctx context.Context, arg GetTaskParams) (Task, error)
+	InsertAttachment(ctx context.Context, arg InsertAttachmentParams) (Attachment, error)
 	InsertAudit(ctx context.Context, arg InsertAuditParams) error
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) (RefreshToken, error)
 	InsertRootRefreshToken(ctx context.Context, arg InsertRootRefreshTokenParams) (RefreshToken, error)
 	ListTasksByUser(ctx context.Context, arg ListTasksByUserParams) ([]Task, error)
-	MarkRefreshTokenUsed(ctx context.Context, id pgtype.UUID) error
 	RevokeFamily(ctx context.Context, familyID pgtype.UUID) error
 	UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (int64, error)
 }

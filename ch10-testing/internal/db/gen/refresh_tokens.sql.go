@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const consumeRefreshToken = `-- name: ConsumeRefreshToken :one
+UPDATE refresh_tokens
+SET used_at = NOW()
+WHERE id = $1 AND used_at IS NULL
+RETURNING id
+`
+
+// used_at IS NULL の条件で原子的に used_at をセットする。
+// 並行 /auth/refresh が 2 回叩かれた場合、1 回目だけが RETURNING で行を返し、
+// 2 回目は pgx.ErrNoRows となる（= 再利用検知）。
+func (q *Queries) ConsumeRefreshToken(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, consumeRefreshToken, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteRefreshTokenByHash = `-- name: DeleteRefreshTokenByHash :exec
 DELETE FROM refresh_tokens
 WHERE token_hash = $1
@@ -122,17 +138,6 @@ func (q *Queries) InsertRootRefreshToken(ctx context.Context, arg InsertRootRefr
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const markRefreshTokenUsed = `-- name: MarkRefreshTokenUsed :exec
-UPDATE refresh_tokens
-SET used_at = NOW()
-WHERE id = $1
-`
-
-func (q *Queries) MarkRefreshTokenUsed(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, markRefreshTokenUsed, id)
-	return err
 }
 
 const revokeFamily = `-- name: RevokeFamily :exec
