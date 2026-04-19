@@ -7,6 +7,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	sentrygin "github.com/getsentry/sentry-go/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/auth"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/handler"
@@ -19,8 +21,11 @@ type Deps struct {
 	TaskHandler       *handler.TaskHandler
 	AuthHandler       *handler.AuthHandler
 	AttachmentHandler *handler.AttachmentHandler
+	HealthHandler     *handler.HealthHandler
 	AuthCfg           *auth.Config
 	Production        bool
+	// SentryEnabled が true のときだけ sentrygin ミドルウェアを有効化
+	SentryEnabled bool
 }
 
 func New(d Deps) *gin.Engine {
@@ -28,16 +33,33 @@ func New(d Deps) *gin.Engine {
 
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
-	r.Use(mw.Errors(d.Logger))
+	if d.SentryEnabled {
+		// Repanic=true: Gin の Recovery に panic を再 throw し、両方の経路を残す
+		// WaitForDelivery=false: リクエストパスでは待たず、プロセス終了時に Flush でまとめて送る
+		r.Use(sentrygin.New(sentrygin.Options{
+			Repanic:         true,
+			WaitForDelivery: false,
+			Timeout:         2 * time.Second,
+		}))
+	}
 	r.Use(mw.Logger(d.Logger))
 	r.Use(mw.SecurityHeaders(d.Production))
 	r.Use(cors.New(corsConfig()))
 	r.Use(d.RateLimiter.Middleware())
 	r.Use(gzipMiddleware())
+	r.Use(mw.Errors(d.Logger)) // innermost: handler 返り直後に c.Errors を処理
 
-	r.GET("/healthz", func(c *gin.Context) {
-		c.String(200, "ok")
-	})
+	// healthz / readyz: LB の死活判定。認証・レート制限の影響を受けない
+	if d.HealthHandler != nil {
+		r.GET("/healthz", d.HealthHandler.Liveness)
+		r.GET("/readyz", d.HealthHandler.Readiness)
+	} else {
+		// 後方互換: HealthHandler 未設定時は旧挙動
+		r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+	}
+	// /metrics: Prometheus スクレイプ用。default registry を使う
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	v1 := r.Group("/api/v1")
 
 	authGroup := v1.Group("/auth")
@@ -96,7 +118,7 @@ func gzipMiddleware() gin.HandlerFunc {
 		gzip.WithExcludedExtensions([]string{
 			".png", ".jpg", ".jpeg", ".webp", ".pdf", ".mp4",
 		}),
-		gzip.WithExcludedPaths([]string{"/healthz", "/metrics"}),
+		gzip.WithExcludedPaths([]string{"/healthz", "/readyz", "/metrics"}),
 		gzip.WithMinLength(1024),
 	)
 }

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,12 +16,16 @@ import (
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/db"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/handler"
 	mw "github.com/forest6511/go-web-textbook-examples/ch12-production/internal/middleware"
+	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/observability"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/repository"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/router"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/storage"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/usecase"
 	appval "github.com/forest6511/go-web-textbook-examples/ch12-production/internal/validator"
 )
+
+// version は GitHub Actions で ldflags 経由で埋める: -X main.version=$GITHUB_SHA
+var version = "dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -29,9 +35,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(),
+	ctx, stop := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	defer stop()
+
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "development"
+	}
+
+	// Sentry は最初に初期化し、以降の panic / エラーを必ず捕捉する
+	if err := observability.InitSentry(version, env); err != nil {
+		logger.Error("init sentry", "error", err)
+		os.Exit(1)
+	}
+	// 2 秒以内に pending events を送信完了まで待つ
+	defer observability.FlushSentry(2 * time.Second)
+
+	// OTel 系の初期化（tracer / meter / logger）。すべて Providers.Shutdown で束ねる
+	providers, err := observability.Init(ctx)
+	if err != nil {
+		logger.Error("init observability", "error", err)
+		os.Exit(1)
+	}
+	// observability は最後に閉じる（handler/DB が trace 送出中の可能性があるため）
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := providers.Shutdown(shutdownCtx); err != nil {
+			logger.Error("observability shutdown", "error", err)
+		}
+	}()
+
+	// SLI メトリクス（default registry に登録、/metrics で露出）
+	_ = observability.NewSLI()
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -52,7 +89,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 開発環境向け: 起動時にマイグレーションを流す
 	if os.Getenv("RUN_MIGRATIONS") == "true" {
 		if err := db.RunMigrations(dsn); err != nil {
 			logger.Error("run migrations", "error", err)
@@ -90,18 +126,55 @@ func main() {
 	attachmentHandler := handler.NewAttachmentHandler(
 		objStorage, attachmentRepo)
 
+	healthHandler := handler.NewHealthHandler(pool)
+
 	r := router.New(router.Deps{
 		Logger:            logger,
 		RateLimiter:       limiter,
 		TaskHandler:       th,
 		AuthHandler:       authHandler,
 		AttachmentHandler: attachmentHandler,
+		HealthHandler:     healthHandler,
 		AuthCfg:           authCfg,
-		Production:        os.Getenv("ENV") == "production",
+		Production:        env == "production",
+		SentryEnabled:     os.Getenv("SENTRY_DSN") != "",
 	})
 	r.MaxMultipartMemory = 8 << 20
-	if err := r.Run(":8080"); err != nil {
-		logger.Error("server exited", "error", err)
-		os.Exit(1)
+
+	srv := &http.Server{
+		Addr:              ":" + port(),
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+
+	go func() {
+		logger.Info("server listening", "addr", srv.Addr, "version", version)
+		if err := srv.ListenAndServe(); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server error", "error", err)
+			stop() // 致命的エラーで shutdown をトリガ
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Info("shutdown signal received, draining")
+
+	// Cloud Run の SIGKILL (10 秒) より短い 8 秒でドレイン
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("graceful shutdown failed", "error", err)
+	}
+}
+
+// port は PORT 環境変数を尊重する（Cloud Run / Fly.io 必須）。
+// 未設定時は 8080 にフォールバック。Ch 11 と同じ idiom。
+func port() string {
+	if p := os.Getenv("PORT"); p != "" {
+		return p
+	}
+	return "8080"
 }
