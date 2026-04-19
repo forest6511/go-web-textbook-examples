@@ -7,6 +7,7 @@ import (
 
 	"github.com/amirsalarsafaei/sqlc-pgx-monitoring/dbtracer"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 )
 
 // NewPool は Cloud Run 向けに調整したコネクションプールを返す
@@ -23,7 +24,11 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.HealthCheckPeriod = 1 * time.Minute
 
-	tracer, err := dbtracer.NewDBTracer("go-web-textbook")
+	tracer, err := dbtracer.NewDBTracer("tasks_db",
+		dbtracer.WithTraceProvider(otel.GetTracerProvider()),
+		dbtracer.WithMeterProvider(otel.GetMeterProvider()),
+		dbtracer.WithLogArgs(false),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("new db tracer: %w", err)
 	}

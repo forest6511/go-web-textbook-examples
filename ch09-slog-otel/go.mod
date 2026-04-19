@@ -3,6 +3,7 @@ module github.com/forest6511/go-web-textbook-examples/ch09-slog-otel
 go 1.26
 
 require (
+	github.com/amirsalarsafaei/sqlc-pgx-monitoring v1.7.3
 	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15
@@ -34,7 +35,6 @@ require (
 )
 
 require (
-	github.com/amirsalarsafaei/sqlc-pgx-monitoring v1.7.3 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.9 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.22 // indirect

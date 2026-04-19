@@ -2,7 +2,6 @@ package router
 
 import (
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -32,8 +31,8 @@ func New(d Deps) *gin.Engine {
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
 	r.Use(otelgin.Middleware("go-web-textbook",
-		otelgin.WithFilter(func(req *http.Request) bool {
-			return req.URL.Path != "/metrics" && req.URL.Path != "/healthz"
+		otelgin.WithGinFilter(func(c *gin.Context) bool {
+			return c.FullPath() != "/metrics" && c.FullPath() != "/healthz"
 		}),
 	))
 	r.Use(mw.Errors(d.Logger))
