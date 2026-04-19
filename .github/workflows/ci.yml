@@ -20,6 +20,9 @@ jobs:
           - ch07-jwt-impl
           - ch08-file-upload
           - ch09-slog-otel
+          - ch10-testing
+          - ch11-deploy
+          - ch12-production
     steps:
       - uses: actions/checkout@v4
 

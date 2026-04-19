@@ -1,0 +1,65 @@
+name: Deploy ch11-deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ch11-deploy/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ch11-deploy
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: ch11-deploy/go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  deploy-cloudrun:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: ch11-deploy
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build & push image
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+          docker build -t ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/api/ch11-deploy:${{ github.sha }} .
+          docker push ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/api/ch11-deploy:${{ github.sha }}
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ch11-deploy
+          image: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/api/ch11-deploy:${{ github.sha }}
+          region: ${{ secrets.GCP_REGION }}
+          flags: |
+            --min-instances=0
+            --max-instances=3
+            --set-env-vars=ENV=production
+            --set-secrets=DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest
+            --add-cloudsql-instances=${{ secrets.GCP_SQL_INSTANCE }}
+
+      - run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
