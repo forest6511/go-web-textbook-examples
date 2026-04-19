@@ -2,11 +2,14 @@ package router
 
 import (
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/auth"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/handler"
@@ -28,6 +31,11 @@ func New(d Deps) *gin.Engine {
 
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
+	r.Use(otelgin.Middleware("go-web-textbook",
+		otelgin.WithFilter(func(req *http.Request) bool {
+			return req.URL.Path != "/metrics" && req.URL.Path != "/healthz"
+		}),
+	))
 	r.Use(mw.Errors(d.Logger))
 	r.Use(mw.Logger(d.Logger))
 	r.Use(mw.SecurityHeaders(d.Production))
@@ -38,6 +46,7 @@ func New(d Deps) *gin.Engine {
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(200, "ok")
 	})
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	v1 := r.Group("/api/v1")
 
 	authGroup := v1.Group("/auth")

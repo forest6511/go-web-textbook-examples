@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/amirsalarsafaei/sqlc-pgx-monitoring/dbtracer"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,6 +22,12 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg.MaxConnLifetimeJitter = 5 * time.Minute
 	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.HealthCheckPeriod = 1 * time.Minute
+
+	tracer, err := dbtracer.NewDBTracer("go-web-textbook")
+	if err != nil {
+		return nil, fmt.Errorf("new db tracer: %w", err)
+	}
+	cfg.ConnConfig.Tracer = tracer
 
 	return newWithConfig(ctx, cfg)
 }

@@ -8,12 +8,14 @@ import (
 	"syscall"
 	"time"
 
+	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"golang.org/x/time/rate"
 
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/auth"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/db"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/handler"
 	mw "github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/middleware"
+	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/observability"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/repository"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/router"
 	"github.com/forest6511/go-web-textbook-examples/ch09-slog-otel/internal/storage"
@@ -32,6 +34,42 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "development"
+	}
+	res, err := observability.NewResource(ctx, env)
+	if err != nil {
+		logger.Error("new resource", "error", err)
+		os.Exit(1)
+	}
+	tp, err := observability.NewTracerProvider(ctx, res)
+	if err != nil {
+		logger.Error("new tracer provider", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer scancel()
+		_ = tp.Shutdown(sctx)
+	}()
+	mp, err := observability.NewMeterProvider(res)
+	if err != nil {
+		logger.Error("new meter provider", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer scancel()
+		_ = mp.Shutdown(sctx)
+	}()
+	if err := otelruntime.Start(
+		otelruntime.WithMinimumReadMemStatsInterval(15 * time.Second),
+	); err != nil {
+		logger.Error("start runtime instrumentation", "error", err)
+		os.Exit(1)
+	}
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
