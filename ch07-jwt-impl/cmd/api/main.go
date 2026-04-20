@@ -84,7 +84,7 @@ func main() {
 		TaskHandler: th,
 		AuthHandler: authHandler,
 		AuthCfg:     authCfg,
-		Production:  os.Getenv("ENV") == "production",
+		Production:  os.Getenv("APP_ENV") == "production",
 	})
 	if err := r.Run(":8080"); err != nil {
 		logger.Error("server exited", "error", err)

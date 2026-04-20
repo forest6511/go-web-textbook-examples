@@ -41,7 +41,7 @@ func LoadConfig() (*Config, error) {
 		AccessTTL:    envDur("JWT_ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:   envDur("JWT_REFRESH_TTL", 7*24*time.Hour),
 		Leeway:       envDur("JWT_LEEWAY", 30*time.Second),
-		SecureCookie: os.Getenv("ENV") == "production",
+		SecureCookie: os.Getenv("APP_ENV") == "production",
 	}, nil
 }
 

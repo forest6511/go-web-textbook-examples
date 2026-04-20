@@ -9,9 +9,6 @@ kill_timeout = 30
 [env]
   GIN_MODE = "release"
   APP_ENV = "production"
-  # ENV は Ch 03/07 由来の旧変数名（auth/jwt.go、main.go で参照）。
-  # 将来 APP_ENV に統一予定だが移行期は両方セット。
-  ENV = "production"
   PORT = "8080"
 
 [http_service]

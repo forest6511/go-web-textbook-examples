@@ -34,7 +34,7 @@ func main() {
 		Logger:      logger,
 		RateLimiter: limiter,
 		TaskHandler: th,
-		Production:  os.Getenv("ENV") == "production",
+		Production:  os.Getenv("APP_ENV") == "production",
 	})
 	if err := r.Run(":8080"); err != nil {
 		logger.Error("server exited", "error", err)

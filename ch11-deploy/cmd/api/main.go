@@ -97,7 +97,7 @@ func main() {
 		AuthHandler:       authHandler,
 		AttachmentHandler: attachmentHandler,
 		AuthCfg:           authCfg,
-		Production:        os.Getenv("ENV") == "production",
+		Production:        os.Getenv("APP_ENV") == "production",
 	})
 	r.MaxMultipartMemory = 8 << 20
 	port := os.Getenv("PORT")

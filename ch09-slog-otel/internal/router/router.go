@@ -28,6 +28,14 @@ type Deps struct {
 func New(d Deps) *gin.Engine {
 	r := gin.New()
 
+	// healthz / metrics はミドルウェアチェーンの前に登録する。CORS / レート
+	// 制限 / Gzip の影響を受けずに常に応答でき、Cloud Run や Kubernetes の
+	// プローブと Prometheus スクレイプが確実に疎通するようにする。
+	r.GET("/healthz", func(c *gin.Context) {
+		c.String(200, "ok")
+	})
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
 	r.Use(otelgin.Middleware("go-web-textbook",
@@ -42,10 +50,6 @@ func New(d Deps) *gin.Engine {
 	r.Use(d.RateLimiter.Middleware())
 	r.Use(gzipMiddleware())
 
-	r.GET("/healthz", func(c *gin.Context) {
-		c.String(200, "ok")
-	})
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	v1 := r.Group("/api/v1")
 
 	authGroup := v1.Group("/auth")

@@ -31,6 +31,18 @@ type Deps struct {
 func New(d Deps) *gin.Engine {
 	r := gin.New()
 
+	// healthz / readyz / metrics はミドルウェアチェーンの前に登録する。CORS /
+	// レート制限 / Gzip / Sentry の影響を受けずに常に応答でき、Cloud Run や
+	// Kubernetes のプローブと Prometheus スクレイプが確実に疎通する。
+	if d.HealthHandler != nil {
+		r.GET("/healthz", d.HealthHandler.Liveness)
+		r.GET("/readyz", d.HealthHandler.Readiness)
+	} else {
+		// 後方互換: HealthHandler 未設定時は旧挙動
+		r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+	}
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
 	if d.SentryEnabled {
@@ -48,17 +60,6 @@ func New(d Deps) *gin.Engine {
 	r.Use(d.RateLimiter.Middleware())
 	r.Use(gzipMiddleware())
 	r.Use(mw.Errors(d.Logger)) // innermost: handler 返り直後に c.Errors を処理
-
-	// healthz / readyz: LB の死活判定。認証・レート制限の影響を受けない
-	if d.HealthHandler != nil {
-		r.GET("/healthz", d.HealthHandler.Liveness)
-		r.GET("/readyz", d.HealthHandler.Readiness)
-	} else {
-		// 後方互換: HealthHandler 未設定時は旧挙動
-		r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
-	}
-	// /metrics: Prometheus スクレイプ用。default registry を使う
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	v1 := r.Group("/api/v1")
 

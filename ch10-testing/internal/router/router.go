@@ -42,6 +42,13 @@ func New(d Deps) *gin.Engine {
 		logger = slog.Default()
 	}
 
+	// healthz はミドルウェアチェーンの前に登録する。CORS / レート制限 / Gzip
+	// の影響を受けずに常に 200 を返せるようにし、Cloud Run や Kubernetes の
+	// プローブが確実に疎通するようにする。
+	r.GET("/healthz", func(c *gin.Context) {
+		c.String(200, "ok")
+	})
+
 	r.Use(mw.Recovery(logger))
 	r.Use(mw.RequestID())
 	r.Use(mw.Logger(logger))
@@ -53,9 +60,6 @@ func New(d Deps) *gin.Engine {
 	r.Use(gzipMiddleware())
 	r.Use(mw.Errors(logger)) // innermost: handler 返り直後に c.Errors を処理
 
-	r.GET("/healthz", func(c *gin.Context) {
-		c.String(200, "ok")
-	})
 	v1 := r.Group("/api/v1")
 
 	if d.AuthHandler != nil {
