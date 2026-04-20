@@ -1,0 +1,25 @@
+# Cloud Run 5xx rate high alert policy
+# 適用: gcloud monitoring policies create --policy-from-file=monitoring/5xx_rate.yaml
+#
+# PROJECT と notificationChannels の ID は環境ごとに置き換える。
+# `gcloud monitoring channels list` でチャンネル ID を確認できる。
+
+displayName: "Cloud Run 5xx rate high"
+conditions:
+  - displayName: "5xx ratio > 1% for 5min"
+    conditionThreshold:
+      filter: >-
+        metric.type="run.googleapis.com/request_count"
+        resource.type="cloud_run_revision"
+        metric.label.response_code_class="5xx"
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_RATE
+      comparison: COMPARISON_GT
+      thresholdValue: 0.01
+      duration: 300s
+combiner: OR
+notificationChannels:
+  - projects/PROJECT/notificationChannels/XXXXXX
+alertStrategy:
+  autoClose: 1800s

@@ -39,8 +39,12 @@ func New(d Deps) *gin.Engine {
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
 	r.Use(otelgin.Middleware("go-web-textbook",
+		otelgin.WithSpanNameFormatter(func(c *gin.Context) string {
+			return c.Request.Method + " " + c.FullPath()
+		}),
 		otelgin.WithGinFilter(func(c *gin.Context) bool {
-			return c.FullPath() != "/metrics" && c.FullPath() != "/healthz"
+			path := c.FullPath()
+			return path != "/healthz" && path != "/metrics"
 		}),
 	))
 	r.Use(mw.Errors(d.Logger))

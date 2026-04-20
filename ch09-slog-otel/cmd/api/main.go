@@ -25,7 +25,8 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := observability.NewBaseLogger(os.Stdout)
+	slog.SetDefault(logger)
 
 	if _, err := appval.Setup(); err != nil {
 		logger.Error("setup validator", "error", err)

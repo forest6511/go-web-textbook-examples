@@ -1,0 +1,41 @@
+name: test-ch10
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ch10-testing/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "ch10-testing/**"
+      - ".github/workflows/test.yml"
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ch10-testing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: ch10-testing/go.mod
+      - run: go vet ./...
+      - run: go test -short -race -coverprofile=coverage.out ./...
+
+  integration:
+    if: github.ref == 'refs/heads/main'
+    needs: unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ch10-testing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: ch10-testing/go.mod
+      - run: go test -tags=integration -race -timeout=10m ./...
