@@ -3,8 +3,11 @@ package usecase
 import (
 	"context"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	dbgen "github.com/forest6511/go-web-textbook-examples/ch12-production/internal/db/gen"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/domain"
+	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/observability"
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/repository"
 )
 
@@ -34,11 +37,24 @@ func New(
 func (u *TaskUsecase) Create(
 	ctx context.Context, userID int64, title string,
 ) (domain.Task, error) {
-	return u.repo.Create(ctx, domain.Task{
+	timer := prometheus.NewTimer(
+		observability.TaskOperationDuration.WithLabelValues("create"),
+	)
+	defer timer.ObserveDuration()
+
+	task, err := u.repo.Create(ctx, domain.Task{
 		UserID: userID,
 		Title:  title,
 		Status: domain.StatusOpen,
 	})
+	if err != nil {
+		observability.TasksCreatedTotal.
+			WithLabelValues(observability.OutcomeFor(err)).Inc()
+		return domain.Task{}, err
+	}
+	observability.TasksCreatedTotal.
+		WithLabelValues("success").Inc()
+	return task, nil
 }
 
 func (u *TaskUsecase) CreateWithAudit(

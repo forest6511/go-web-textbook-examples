@@ -1,28 +1,39 @@
-app = "go-web-textbook-ch11"
+app = "go-web-textbook-sample"
 primary_region = "nrt"
+kill_signal = "SIGTERM"
+kill_timeout = 30
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
+  GIN_MODE = "release"
+  APP_ENV = "production"
+  # ENV は Ch 03/07 由来の旧変数名（auth/jwt.go、main.go で参照）。
+  # 将来 APP_ENV に統一予定だが移行期は両方セット。
   ENV = "production"
   PORT = "8080"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = "suspend"
   auto_start_machines = true
   min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 100
+    hard_limit = 200
 
   [[http_service.checks]]
     grace_period = "10s"
     interval = "30s"
     method = "GET"
-    timeout = "5s"
     path = "/healthz"
+    timeout = "5s"
 
 [[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
   cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 256

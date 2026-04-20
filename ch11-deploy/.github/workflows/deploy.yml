@@ -59,7 +59,7 @@ jobs:
             --min-instances=0
             --max-instances=3
             --set-env-vars=ENV=production
-            --set-secrets=DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest
+            --set-secrets=DATABASE_URL=database-url:1,JWT_SECRET=jwt-secret:1
             --add-cloudsql-instances=${{ secrets.GCP_SQL_INSTANCE }}
 
       - run: echo "Deployed to ${{ steps.deploy.outputs.url }}"

@@ -21,7 +21,10 @@ func InitSentry(release, environment string) error {
 		Dsn:              dsn,
 		Release:          release,
 		Environment:      environment,
+		SampleRate:       1.0, // error は全件送信（課金対象ではない）
 		TracesSampleRate: 0.0, // Tracing は OTel 側で行うため Sentry は error だけ拾う
+		AttachStacktrace: true,
+		MaxBreadcrumbs:   100,
 		BeforeSend:       ScrubPII,
 	})
 }
@@ -44,8 +47,9 @@ func ScrubPII(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
 	if event == nil {
 		return nil
 	}
-	// User 情報から Email を削除（ID はエラー追跡のため残す）
+	// User 情報から Email / IP を削除（ID はエラー追跡のため残す）
 	event.User.Email = ""
+	event.User.IPAddress = ""
 
 	if event.Request != nil {
 		event.Request.Cookies = ""

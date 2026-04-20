@@ -20,5 +20,5 @@ UPDATE tasks
 SET status = $1, updated_at = NOW()
 WHERE id = $2 AND user_id = $3;
 
--- name: DeleteTask :exec
+-- name: DeleteTask :execrows
 DELETE FROM tasks WHERE id = $1 AND user_id = $2;

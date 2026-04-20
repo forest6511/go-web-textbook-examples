@@ -3,15 +3,20 @@ package middleware
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 
+	"github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 
 	"github.com/forest6511/go-web-textbook-examples/ch12-production/internal/apperror"
 )
 
-// Errors は c.Errors を RFC 7807 形式で書き出す
+// Errors は c.Errors を RFC 7807 形式で書き出す。
+// 5xx は Sentry にも送信する（sentrygin が hub を context に積んでいる場合のみ）。
+// 4xx は送らない: バリデーション失敗や 401/403 はアプリの意図した応答であり監視対象外。
 func Errors(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -23,6 +28,12 @@ func Errors(logger *slog.Logger) gin.HandlerFunc {
 		if appErr.HTTPCode >= 500 {
 			logger.ErrorContext(c.Request.Context(),
 				"request failed", "error", err, "code", appErr.Code)
+			if hub := sentrygin.GetHubFromContext(c); hub != nil {
+				hub.WithScope(func(scope *sentry.Scope) {
+					scope.SetTag("error_code", appErr.Code)
+					hub.CaptureException(err)
+				})
+			}
 		}
 		c.Header("Content-Type", "application/problem+json")
 		c.AbortWithStatusJSON(
@@ -43,6 +54,12 @@ func toAppError(err error) *apperror.AppError {
 			"request body did not pass validation",
 			toFieldIssues(ve), err,
 		)
+	}
+	// 空 body / 途中で切れた body は io.EOF / io.ErrUnexpectedEOF として現れる。
+	// 500 ではなく 400 Bad Request に振り分ける（Ch 05 の積み残し）。
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return apperror.NewBadRequest(
+			"request body is empty or truncated", err)
 	}
 	var syn *json.SyntaxError
 	var ute *json.UnmarshalTypeError

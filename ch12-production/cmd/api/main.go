@@ -68,7 +68,7 @@ func main() {
 	}()
 
 	// SLI メトリクス（default registry に登録、/metrics で露出）
-	_ = observability.NewSLI()
+	observability.InitSLI()
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {

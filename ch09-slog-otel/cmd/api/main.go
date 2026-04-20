@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"golang.org/x/time/rate"
 
@@ -64,6 +65,28 @@ func main() {
 		defer scancel()
 		_ = mp.Shutdown(sctx)
 	}()
+	lp, err := observability.NewLoggerProvider(ctx, res)
+	if err != nil {
+		logger.Error("new logger provider", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		sctx, scancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer scancel()
+		_ = lp.Shutdown(sctx)
+	}()
+
+	// stdout + OTel 両方にログを流す。OTel 経路で trace_id/span_id が自動付与される
+	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+	otelHandler := otelslog.NewHandler("go-web-textbook",
+		otelslog.WithLoggerProvider(lp))
+	combined := observability.NewMultiHandler(stdoutHandler, otelHandler)
+	logger = slog.New(combined)
+	slog.SetDefault(logger)
+	slog.InfoContext(ctx, "observability ready")
+
 	if err := otelruntime.Start(
 		otelruntime.WithMinimumReadMemStatsInterval(15 * time.Second),
 	); err != nil {

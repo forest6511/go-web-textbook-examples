@@ -20,10 +20,14 @@ SELECT id, user_id, token_hash, family_id, parent_id,
 FROM refresh_tokens
 WHERE token_hash = $1;
 
--- name: MarkRefreshTokenUsed :exec
+-- name: ConsumeRefreshToken :one
+-- used_at IS NULL の条件で原子的に used_at をセットする。
+-- 並行 /auth/refresh が 2 回叩かれた場合、1 回目だけが RETURNING で行を返し、
+-- 2 回目は pgx.ErrNoRows となる（= 再利用検知）。
 UPDATE refresh_tokens
 SET used_at = NOW()
-WHERE id = $1;
+WHERE id = $1 AND used_at IS NULL
+RETURNING id;
 
 -- name: RevokeFamily :exec
 UPDATE refresh_tokens

@@ -28,12 +28,12 @@ func New(d Deps) *gin.Engine {
 
 	r.Use(mw.Recovery(d.Logger))
 	r.Use(mw.RequestID())
-	r.Use(mw.Errors(d.Logger))
 	r.Use(mw.Logger(d.Logger))
 	r.Use(mw.SecurityHeaders(d.Production))
 	r.Use(cors.New(corsConfig()))
 	r.Use(d.RateLimiter.Middleware())
 	r.Use(gzipMiddleware())
+	r.Use(mw.Errors(d.Logger)) // innermost: handler 返り直後に c.Errors を処理
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(200, "ok")

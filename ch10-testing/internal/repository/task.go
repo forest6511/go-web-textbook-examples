@@ -22,6 +22,13 @@ func NewPostgresTaskRepo(pool *pgxpool.Pool) *PostgresTaskRepo {
 	}
 }
 
+// NewTaskRepo は *dbgen.Queries を直接受け取る。pgxmock を使った
+// ユニットテストで pool に依存せず Queries だけ差し替える用途。
+// 本番コードは NewPostgresTaskRepo を使う。
+func NewTaskRepo(queries *dbgen.Queries) *PostgresTaskRepo {
+	return &PostgresTaskRepo{pool: nil, queries: queries}
+}
+
 func (r *PostgresTaskRepo) Create(
 	ctx context.Context, t domain.Task,
 ) (domain.Task, error) {

@@ -93,16 +93,22 @@ func (r *RefreshTokenRepo) rotateInTx(
 	if row.RevokedAt.Valid {
 		return domain.ErrRefreshRevoked
 	}
-	if row.UsedAt.Valid {
-		// 別コネクションで family revoke を確定させる（TX が rollback されても残す）
-		_, _ = r.pool.Exec(ctx,
-			"UPDATE refresh_tokens SET revoked_at = NOW() "+
-				"WHERE family_id = $1 AND revoked_at IS NULL",
-			row.FamilyID)
-		return domain.ErrRefreshReused
-	}
 	if row.ExpiresAt.Before(time.Now()) {
 		return domain.ErrRefreshExpired
+	}
+	// ConsumeRefreshToken は used_at IS NULL のときだけ UPDATE して RETURNING する。
+	// 並行 Refresh が 2 回叩かれても、どちらか 1 回だけが行を返す（他方は ErrNoRows）。
+	// これで Ch 07 の「SELECT→UPDATE の非原子性による Refresh Token race」を塞ぐ。
+	if _, err := q.ConsumeRefreshToken(ctx, row.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// 別コネクションで family revoke を確定させる（TX rollback で消えないよう外に出す）
+			_, _ = r.pool.Exec(ctx,
+				"UPDATE refresh_tokens SET revoked_at = NOW() "+
+					"WHERE family_id = $1 AND revoked_at IS NULL",
+				row.FamilyID)
+			return domain.ErrRefreshReused
+		}
+		return mapPgError(err)
 	}
 	return r.rotateInsert(ctx, q, row, newHash, newExpiresAt, result)
 }
@@ -112,9 +118,6 @@ func (r *RefreshTokenRepo) rotateInsert(
 	row dbgen.RefreshToken, newHash []byte,
 	newExpiresAt time.Time, result *RotateResult,
 ) error {
-	if err := q.MarkRefreshTokenUsed(ctx, row.ID); err != nil {
-		return mapPgError(err)
-	}
 	inserted, err := q.InsertRefreshToken(ctx,
 		dbgen.InsertRefreshTokenParams{
 			UserID:    row.UserID,

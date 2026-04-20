@@ -35,7 +35,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 	return i, err
 }
 
-const deleteTask = `-- name: DeleteTask :exec
+const deleteTask = `-- name: DeleteTask :execrows
 DELETE FROM tasks WHERE id = $1 AND user_id = $2
 `
 
@@ -44,9 +44,12 @@ type DeleteTaskParams struct {
 	UserID int64 `json:"user_id"`
 }
 
-func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) error {
-	_, err := q.db.Exec(ctx, deleteTask, arg.ID, arg.UserID)
-	return err
+func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTask, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getTask = `-- name: GetTask :one
